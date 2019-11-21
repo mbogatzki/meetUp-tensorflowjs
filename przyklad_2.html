@@ -1,0 +1,189 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.0.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis@1.0.2/dist/tfjs-vis.umd.min.js"></script>
+
+  <style>
+    body   { font-family: sans-serif; font-size: 25px; }
+    span   { color: blue; }
+    .table   { display: table; }
+    .row      { display: table-row; }
+    label  { display: table-cell; }
+    input  { display: table-cell; font-size: 20px }
+    button { margin: 5px; display: inline-block; font-size: 20px; }
+    h1, h4, h6     { margin: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Przykład 2</h1>
+  <h4>Bardziej zaawansowana sieć neuronowa oraz zapisywanie i wczytywanie modelu</h4>
+  <h6>Wymaga serwera np, python -m SimpleHTTPServer 1337</h6>
+  <hr>
+
+  <button onclick="training()">UCZENIE SIECI</button>
+  <button onclick="saveModel()">ZAPISZ MODEL</button>
+  <button onclick="loadModel()">WCZYTAJ MODEL</button>
+<p>
+  Status: <span id="status"></span>
+  </p>
+  <hr>
+
+  <form class="table">
+    <p class="row">
+      <label>Live:</label>
+      <input type="text" name="live" value="1,3">
+    </p>
+    <p class="row">
+      <label>Video:</label>
+      <input type="text" name="video" value="1,3">
+    </p>
+    <p class="row">
+      <label>Commentary:</label>
+      <input type="text" name="commentary"  value="2,3,2">
+    </p>
+    <p class="row">
+      <label>Head2head:</label>
+      <input type="text" name="head2head"  value="8,8,8,7,5,6">
+    </p>
+    <p class="row">
+      <label>Standings:</label>
+      <input type="text" name="standings"  value="4,3,3">
+    </p>
+    <p class="row">
+      <label>Players:</label>
+      <input type="text" name="players" value="5,8,7,8,9,7,8">
+    </p>
+  </form>
+
+  <button onclick="predict()">ANALIZUJ</button>
+
+  <h4>Wynik:</h4
+              >
+  <div class="table">
+    <p class="row">
+      <label>Manger:</label>
+      <input type="text" id="manager">
+    </p>
+    <p class="row">
+      <label>Gambler:</label>
+      <input type="text" id="gambler">
+    </p>
+    <p class="row">
+      <label>QA:</label>
+      <input type="text" id="qa">
+    </p>
+  </div>
+
+  <script type="text/javascript">
+    let model;
+    const statusElem = document.getElementById('status');
+
+    function createModel () {
+      // Stworzenie modelu
+      model = tf.sequential();
+      // Dodanie warstwy wejściowej
+      model.add(tf.layers.dense({
+        inputShape: [6],
+        activation: "sigmoid",
+        units: 8
+      }));
+
+      // Dodanie warstwy ukrytej
+      model.add(tf.layers.dense({
+        inputShape: [8],
+        activation: "sigmoid",
+        units: 3 
+      }))
+
+      //warstwa wyjściowa
+      model.add(tf.layers.dense({
+        activation: "sigmoid",
+        units: 3
+      }))
+
+      model.compile({
+        loss: "meanSquaredError",
+        optimizer: tf.train.adam(.03)
+      });
+
+      // Biblioteka pokazująca dane o modelu
+      tfvis.show.modelSummary({name: 'Model Summary'}, model);
+    }
+    
+    function normalize (data) {
+      const max = 20;
+      const min = 1;
+      const summarizedValues = data.reduce((sum, value) => {
+        return sum += Number.parseInt(value);
+      }, 0);
+      
+      return (summarizedValues - min) / (max - min);
+    }
+    
+    async function training () {
+      createModel();
+
+      statusElem.textContent = 'pobieranie danych uczących';
+
+      // Pobranie danych uczyących
+      const res = await fetch('http://localhost:1337/data.json');
+      const data = await res.json();
+
+      // Stworzenie tensorów z danymi do uczenia sieci
+      const trainingData = tf.tensor2d(data.users.map(user => {
+        return  user.stats.map(normalize)
+      }), [30, 6]);
+      console.log('Debug: tensor', trainingData);
+
+      const outputData = tf.tensor2d(data.users.map(user => [
+        user.type === 'manager' ? 1 : 0,
+        user.type === 'gambler' ? 1 : 0,
+        user.type === 'qa' ? 1 : 0
+
+      ]), [30,3])
+
+
+      // Uczenie sieci
+      statusElem.textContent = 'uczenie rozpoczęte…';
+      await model.fit(trainingData, outputData, {
+        epochs: 100,
+        callbacks: tfvis.show.fitCallbacks(
+          { name: 'Training Performance' },
+          ['loss'], 
+          { height: 200, callbacks: ['onEpochEnd'] }
+        )});
+
+      // Koniec uczenia
+      statusElem.textContent = 'uczenie zakończone';
+    }
+
+    async function predict () {
+      // Użycie modelu
+      const form = new FormData(document.querySelector('form'))
+      const input = Array.from(form.values())
+            .map(value => value.split(','))
+            .map(normalize);
+      const inputTensor = tf.tensor2d(input, [1,6]);
+      const result = await model.predict(inputTensor).dataSync();
+
+      document.getElementById('manager').value = result[0];
+      document.getElementById('gambler').value = result[1];
+      document.getElementById('qa').value = result[2];
+    }
+
+    async function saveModel () {
+      await model.save('downloads://test-model');
+      statusElem.textContent = 'model zapisany';
+    }
+
+    async function loadModel () {
+      model = await tf.loadLayersModel('http://localhost:1337/test-model.json');
+      statusElem.textContent = 'model wczytany';
+    }
+      
+  </script>
+</body>
+</html>
