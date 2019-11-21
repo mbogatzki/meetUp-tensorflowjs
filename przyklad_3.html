@@ -1,0 +1,80 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+  <!-- ładnownie Tensorflow.js i skryptu gotowego modelu -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/toxicity"></script>
+
+  <style>
+    body   { font-family: sans-serif; font-size: 25px; }
+    span   { color: blue; }
+    textarea  { font-size: 25px; display: block; }
+    button { margin: 5px; font-size: 20px; }
+    h1, h4 { margin: 5px; }
+
+  </style>
+
+</head>
+<body style="font-family: sans-serif">
+  <h1>Przykład 3</h1>
+  <h4>Użycie gotowego modelu do badania "toksyczności" wiadomości</h4>
+  <hr>
+
+  <textarea rows="4" cols="50"></textarea>
+  <button onclick="analize()">ANALIZUJ</button>
+  <p>Wynik:
+    <span id="result"></span>
+  </p>
+  <hr>
+  Przykładowe teksty:
+  <p>"Haters would say its photoshopped"</p>
+
+  <p>"Do not argue with an idiot. He will drag you down to his level and beat you with experience." <i>~Mark Twain</i></p>
+
+  <p>"Never underestimate the power of stupid people in large groups." <i>~George Carlin</i></p>
+
+
+  <script type="text/javascript">
+    let model;
+
+    async function analize () {
+      const resultElem = document.querySelector('#result');
+      const message = document.querySelector('textarea').value;
+      const threshold = 0.7; // minimalna pewność prognozowania
+      
+
+      if (!model) {
+        // załadowanie modelu
+        resultElem.textContent = 'pobieranie modelu';
+        model = await toxicity.load(threshold);
+        
+      }
+      resultElem.textContent = 'analizowanie…';
+         // użycie modelu do klasyfikacji
+      const predictions = await model.classify(message);
+
+      
+      const result = predictions
+        .filter(type => type.results[0].match) // filtorwanie tylko tych które mają match, null gdy nie spełniły threshold
+      .map(type => type.label);
+
+
+      /*
+       Identity attack
+       Insult
+       Obscene
+       Severe toxicity
+       Sexual explicit
+       Threat
+       Toxicity
+      */
+      resultElem.textContent = result.length ? result : 'OK'
+    }
+
+    
+  </script>
+</body>
+</html>
