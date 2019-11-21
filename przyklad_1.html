@@ -1,0 +1,105 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.0.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis@1.0.2/dist/tfjs-vis.umd.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      font-size: 25px;
+    }
+    span {
+      color: blue;
+    }
+  </style>
+
+</head>
+<body>
+  <h1>Przykład 1</h1>
+  <h3>Najprostsza sieć neuronowa</h3>
+  <hr>
+
+  <div>
+    Użyty backend:
+    <span id="backend"></span>
+  </div>
+  <div>
+    Zestaw uczący:
+   <p>Wejście: <span id="inputData"></span></p>
+   <p>Wyjście: <span id="outputData"></p></span>
+  </div>
+  <div>
+    Zestaw testujący:
+    <span id="testData"></span>
+  </div>
+  <div>
+   <p>Spodziewany wynik: <span id="expected"></span></p>
+   <p>Wynik:</p>
+   <span id="result"></span>
+  </div>
+
+  <script type="text/javascript">
+    (async function () {
+      const inputData = [1, 2, 3, 4, 5];
+      // Spodziewany wynik to x + (x - 1) 
+      const outputData = [1, 3, 5, 7, 9];
+      const testData = [5,6,7];
+
+      document.getElementById('backend').textContent = tf.getBackend();
+      document.getElementById('inputData').textContent = inputData;
+      document.getElementById('outputData').textContent = outputData;
+      document.getElementById('testData').textContent = testData;
+      /*
+       Stworzenie tensorów z danymi do uczenia sieci
+       const trainingData = tf.tensor2d([1, 2, 3, 4, 5], [5, 1]);
+       5 zbiorów uczących z jedną wartością
+      */
+
+      const trainingTensor = tf.tensor2d(inputData, [inputData.length, 1]);
+
+      const outputTensor = tf.tensor2d(outputData, [outputData.length, 1]);
+
+      const testTensor = tf.tensor2d(testData, [testData.length, 1]);
+
+      
+      // Stworzenie modelu
+      const model = tf.sequential();
+      
+      // Dodanie warstwy
+      model.add(tf.layers.dense({ units: 1, inputShape: [1] }));
+
+      // Kompilacja modelu
+      model.compile({loss: 'meanSquaredError', optimizer: 'sgd'});
+
+      // Biblioteka pokazująca dane o modelu
+      tfvis.show.modelSummary({name: 'Model Summary'}, model);
+
+      // Ilość przejść przez zestaw uczący
+      const epochs = 100;
+                                       
+      // Uczenie sieci
+      await model.fit(trainingTensor, outputTensor, {
+        epochs: epochs,
+        callbacks: tfvis.show.fitCallbacks(
+          { name: 'Training Performance' },
+          ['loss'], 
+          { height: 200, callbacks: ['onEpochEnd'] }
+        )
+      });
+      
+      // Użycie modelu z danymi testowymi
+      const result = await model.predict(testTensor).array();
+
+      // Wyświetlenie wyniku
+      document.getElementById('result').innerHTML = result.join('<br>');
+
+      // Wyświetlenie spodziewanego wyniku
+      document.getElementById('expected').textContent = testData.map((elem) => elem + (elem - 1)); ;
+
+    })();
+    
+  </script>
+</body>
+</html>
